@@ -13,7 +13,7 @@
             display: grid; 
             grid-template-columns: repeat(2, 1fr); 
             gap: 6px; 
-            margin-bottom: 12px; 
+            margin-bottom: 10px; 
         }
         .status-box {
             background: #1E293B; 
@@ -23,28 +23,54 @@
             border: 1px solid #334155;
         }
         .status-title { font-size: 10px; color: #94A3B8; margin-bottom: 2px; }
-        .status-value { font-size: 14px; font-weight: bold; color: #38BDF8; }
-        .highlight-value { color: #4ADE80; } /* 총자산 강조 색상 (초록) */
-        .military-value { color: #FACC15; }  /* 군적금 강조 색상 (노랑) */
+        .status-value { font-size: 13px; font-weight: bold; color: #38BDF8; }
+        .highlight-value { color: #4ADE80; } /* 총자산 (초록) */
+        .military-value { color: #FACC15; }  /* 군적금 (노랑) */
+
+        /* 자산 게이지 바 섹션 */
+        .gauge-section {
+            background: #1E293B;
+            border-radius: 8px;
+            padding: 8px 10px;
+            margin-bottom: 10px;
+            border: 1px solid #334155;
+        }
+        .gauge-title-container {
+            display: flex;
+            justify-content: space-between;
+            font-size: 10px;
+            color: #94A3B8;
+            margin-bottom: 4px;
+        }
+        .gauge-bar-bg {
+            width: 100%;
+            height: 12px;
+            background-color: #0F172A;
+            border-radius: 6px;
+            overflow: hidden;
+            display: flex;
+        }
+        
+        /* 종목/자산별 게이지 바 조각 */
+        .gauge-segment { height: 100%; transition: width 0.3s; }
 
         /* 이번 달 매수 섹션 */
-        .section-title { font-size: 12px; font-weight: bold; color: #CBD5E1; margin-bottom: 6px; display: flex; justify-content: space-between; }
+        .section-title { font-size: 11px; font-weight: bold; color: #CBD5E1; margin-bottom: 6px; display: flex; justify-content: space-between; }
         .buy-card {
             background: #1E293B; 
-            border-left: 4px solid #3B82F6;
-            padding: 8px 10px; 
-            margin-bottom: 5px; 
+            padding: 6px 8px; 
+            margin-bottom: 4px; 
             border-radius: 6px;
             display: flex; 
             justify-content: space-between; 
             align-items: center;
         }
-        .ticker { font-size: 14px; font-weight: bold; color: #FFF; }
-        .price-sub { font-size: 11px; color: #64748B; margin-left: 4px; }
-        .qty { font-size: 14px; font-weight: bold; color: #60A5FA; }
+        .ticker { font-size: 13px; font-weight: bold; color: #FFF; }
+        .price-sub { font-size: 10px; color: #64748B; margin-left: 4px; }
+        .qty { font-size: 13px; font-weight: bold; }
 
         /* 하단 잔액 */
-        .footer-info { font-size: 10px; color: #64748B; text-align: right; margin-top: 6px; }
+        .footer-info { font-size: 9px; color: #64748B; text-align: right; margin-top: 4px; }
     </style>
 </head>
 <body>
@@ -57,7 +83,7 @@
         </div>
         <div class="status-box">
             <div class="status-title">🪖 군적금 자산</div>
-            <div class="status-value military-value" id="military-asset">165만원</div>
+            <div class="status-value military-value" id="military-asset">0원</div>
         </div>
         <div class="status-box">
             <div class="status-title">💰 총합계 자산</div>
@@ -69,10 +95,21 @@
         </div>
     </div>
 
+    <!-- 연동형 종목/군적금 자산 비중 게이지 바 -->
+    <div class="gauge-section">
+        <div class="gauge-title-container">
+            <span>📊 자산 구성 (주식 종목별 & 군적금)</span>
+            <span id="military-gauge-sub">만기 1,155만원 목표</span>
+        </div>
+        <div class="gauge-bar-bg" id="total-gauge-bar">
+            <!-- 자바스크립트에서 비율별 색상 막대가 동적으로 삽입됩니다 -->
+        </div>
+    </div>
+
     <!-- 이번 달 추천 매수 목록 -->
     <div class="section-title">
         <span>🛒 이번 달 추천 매수</span>
-        <span style="font-size: 10px; font-weight: normal; color: #94A3B8;">(월 15만원 기준)</span>
+        <span style="font-size: 9px; font-weight: normal; color: #94A3B8;">(월 15만원 기준)</span>
     </div>
     <div id="buy-list"></div>
 
@@ -80,23 +117,41 @@
     <div class="footer-info" id="rem-budget">이월 예수금: $0.00</div>
 
     <script>
-        // === 사용자 기본 설정 ===
+        // === 기본 설정 ===
         const EXCHANGE_RATE = 1380;            // 환율
         const MONTHLY_BUDGET_KRW = 150000;     // 월 적립 매수금 (15만원)
-        const MILITARY_SAVINGS_KRW = 1650000;  // 군적금 현금 (165만원)
 
-        const MONTHLY_BUDGET_USD = MONTHLY_BUDGET_KRW / EXCHANGE_RATE;
+        // === 🪖 군적금 자동 계산 설정 ===
+        const BASE_DATE = new Date(2026, 6, 10); // 2026-07-10 (3개월차: 165만원)
+        const BASE_SAVINGS = 1650000;
+        const MONTHLY_SAVINGS = 550000; // 매달 10일 55만원
+        const TARGET_DATE = new Date(2028, 0, 10); // 2028-01-10 만기
+        const MAX_MILITARY_SAVINGS = 11550000;
 
-        // 종목 기본 정보
+        function calculateMilitarySavings() {
+            const today = new Date();
+            if (today < BASE_DATE) return BASE_SAVINGS;
+            if (today >= TARGET_DATE) return MAX_MILITARY_SAVINGS;
+
+            let monthsPassed = (today.getFullYear() - BASE_DATE.getFullYear()) * 12 + (today.getMonth() - BASE_DATE.getMonth());
+            if (today.getDate() < 10) monthsPassed -= 1;
+            monthsPassed = Math.max(0, monthsPassed);
+
+            return Math.min(MAX_MILITARY_SAVINGS, BASE_SAVINGS + (monthsPassed * MONTHLY_SAVINGS));
+        }
+
+        const MILITARY_SAVINGS_KRW = calculateMilitarySavings();
+
+        // 🎨 종목 기본 정보 및 고유 테마 색상 연동
         const STOCKS = {
-            "JEPQ": { price: 54.50, yield: 0.092, target: 0.30 },
-            "MAIN": { price: 48.00, yield: 0.062, target: 0.20 },
-            "VZ":   { price: 41.50, yield: 0.065, target: 0.15 },
-            "ARCC": { price: 21.00, yield: 0.091, target: 0.15 },
-            "MO":   { price: 45.00, yield: 0.087, target: 0.20 }
+            "JEPQ": { price: 54.50, yield: 0.092, target: 0.30, color: "#38BDF8" }, // 하늘색
+            "MAIN": { price: 48.00, yield: 0.062, target: 0.20, color: "#34D399" }, // 에메랄드
+            "VZ":   { price: 41.50, yield: 0.065, target: 0.15, color: "#A78BFA" }, // 퍼플
+            "ARCC": { price: 21.00, yield: 0.091, target: 0.15, color: "#F472B6" }, // 핑크
+            "MO":   { price: 45.00, yield: 0.087, target: 0.20, color: "#FB923C" }  // 오렌지
         };
 
-        // 📌 [중요] 실제 살 때마다 아래 주식 수량을 수정해 주시면 됩니다!
+        // 📌 실제 보유 주식 수량 (매수 시 수정)
         const HOLDINGS = {
             "JEPQ": 0,
             "MAIN": 0,
@@ -106,17 +161,20 @@
         };
 
         // --- 계산 엔진 ---
+        const MONTHLY_BUDGET_USD = MONTHLY_BUDGET_KRW / EXCHANGE_RATE;
         let stockValUSD = 0;
         let totalAnnualDivUSD = 0;
+        let stockValuesKRW = {};
 
         for (let t in HOLDINGS) {
-            let val = HOLDINGS[t] * STOCKS[t].price;
-            stockValUSD += val;
-            totalAnnualDivUSD += val * STOCKS[t].yield;
+            let valUSD = HOLDINGS[t] * STOCKS[t].price;
+            stockValUSD += valUSD;
+            totalAnnualDivUSD += valUSD * STOCKS[t].yield;
+            stockValuesKRW[t] = Math.floor(valUSD * EXCHANGE_RATE);
         }
 
         let stockValKRW = Math.floor(stockValUSD * EXCHANGE_RATE);
-        let totalAssetKRW = stockValKRW + MILITARY_SAVINGS_KRW; // 주식자산 + 군적금
+        let totalAssetKRW = stockValKRW + MILITARY_SAVINGS_KRW;
         let monthlyDivKRW = Math.floor((totalAnnualDivUSD * 0.846 / 12) * EXCHANGE_RATE);
 
         // UI 스탯바 갱신
@@ -125,7 +183,28 @@
         document.getElementById("total-asset").innerText = (totalAssetKRW / 10000).toFixed(0) + "만원";
         document.getElementById("monthly-div").innerText = monthlyDivKRW.toLocaleString() + "원";
 
-        // 추천 매수 수량 계산
+        // === 📊 통합 자산 게이지 바 연동 조립 ===
+        let gaugeHTML = "";
+        
+        // 1. 주식 종목별 게이지 생성
+        if (totalAssetKRW > 0) {
+            for (let t in STOCKS) {
+                let percent = ((stockValuesKRW[t] / totalAssetKRW) * 100).toFixed(1);
+                if (percent > 0) {
+                    gaugeHTML += `<div class="gauge-segment" style="width: ${percent}%; background-color: ${STOCKS[t].color};" title="${t}: ${percent}%"></div>`;
+                }
+            }
+            // 2. 군적금 게이지 생성 (노란색 #FACC15)
+            let militaryPercent = ((MILITARY_SAVINGS_KRW / totalAssetKRW) * 100).toFixed(1);
+            gaugeHTML += `<div class="gauge-segment" style="width: ${militaryPercent}%; background-color: #FACC15;" title="군적금: ${militaryPercent}%"></div>`;
+        }
+
+        document.getElementById("total-gauge-bar").innerHTML = gaugeHTML;
+
+        let militaryTargetPercent = Math.min(100, (MILITARY_SAVINGS_KRW / MAX_MILITARY_SAVINGS) * 100).toFixed(1);
+        document.getElementById("military-gauge-sub").innerText = `군적금 만기 달성률: ${militaryTargetPercent}%`;
+
+        // === 🛒 종목별 카드 테두리 색상 연동 ===
         let gaps = [];
         for (let t in STOCKS) {
             let currVal = HOLDINGS[t] * STOCKS[t].price;
@@ -142,25 +221,27 @@
         for (let item of gaps) {
             let t = item.ticker;
             let price = STOCKS[t].price;
+            let color = STOCKS[t].color;
+
             if (remBudget >= price) {
                 let count = Math.floor(remBudget / price);
                 remBudget -= count * price;
                 hasBuy = true;
 
                 buyListHTML += `
-                    <div class="buy-card">
+                    <div class="buy-card" style="border-left: 4px solid ${color};">
                         <div>
-                            <span class="ticker">${t}</span>
+                            <span class="ticker" style="color: ${color};">${t}</span>
                             <span class="price-sub">($${price})</span>
                         </div>
-                        <div class="qty">+${count}주 <span style="font-size:10px; color:#94A3B8;">($${(count*price).toFixed(1)})</span></div>
+                        <div class="qty" style="color: ${color};">+${count}주 <span style="font-size:9px; color:#94A3B8;">($${(count*price).toFixed(1)})</span></div>
                     </div>
                 `;
             }
         }
 
         if (!hasBuy) {
-            buyListHTML = `<div style="font-size:11px; color:#64748B; text-align:center; padding:8px;">이번 달은 잔액 부족으로 이월됩니다.</div>`;
+            buyListHTML = `<div style="font-size:11px; color:#64748B; text-align:center; padding:6px;">이번 달은 잔액 부족으로 이월됩니다.</div>`;
         }
 
         document.getElementById("buy-list").innerHTML = buyListHTML;
