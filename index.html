@@ -77,7 +77,7 @@
         .buy-title { color: #94A3B8; font-weight: bold; margin-right: 5px; flex-shrink: 0; }
         .buy-content { font-weight: bold; overflow: hidden; text-overflow: ellipsis; }
 
-        /* 🥛 추천 매수 아래 배치된 물컵 배당금 게이지 */
+        /* 🥛 가운데 정렬된 물컵 배당금 게이지 */
         .cup-section {
             background: #1E293B;
             border-radius: 6px;
@@ -85,7 +85,8 @@
             border: 1px solid #334155;
             display: flex;
             align-items: center;
-            gap: 10px;
+            justify-content: center; /* 전체 가운데 정렬 */
+            gap: 8px;
             margin-bottom: 4px;
         }
         .cup-glass {
@@ -111,13 +112,12 @@
         .cup-info {
             display: flex;
             align-items: center;
-            justify-content: space-between;
-            flex-grow: 1;
+            gap: 6px;
             font-size: 8.5px;
         }
         .cup-title { color: #94A3B8; }
-        .cup-val-group { font-weight: bold; }
-        .cup-div-text { color: #F8FAFC; margin-right: 4px; }
+        .cup-val-group { font-weight: bold; display: flex; align-items: center; gap: 3px; }
+        .cup-div-text { color: #F8FAFC; }
         .cup-percent-text { color: #38BDF8; }
 
         /* 하단 잔액 정보 */
@@ -153,13 +153,13 @@
         <span class="buy-content" id="buy-summary">계산 중...</span>
     </div>
 
-    <!-- 🥛 물컵 배당금 게이지 (추천 매수 아래로 이동) -->
+    <!-- 🥛 물컵 배당금 게이지 (가운데 정렬) -->
     <div class="cup-section">
         <div class="cup-glass">
             <div class="cup-water" id="cup-water-level" style="height: 0%;"></div>
         </div>
         <div class="cup-info">
-            <span class="cup-title">🥤 월 배당금 (목표 50만)</span>
+            <span class="cup-title">월 배당금 (목표 50만):</span>
             <div class="cup-val-group">
                 <span class="cup-div-text" id="monthly-div">0원</span>
                 <span class="cup-percent-text" id="cup-percent-val">(0%)</span>
